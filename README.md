@@ -108,7 +108,7 @@ Known labextensions:
         @jupyterlab/toc v4.0.0  enabled  OK
         nbdime-jupyterlab v2.0.0  enabled  OK
 ```
-NOTE: If you don't see the elyra server extension enabled, you may need to explicitly enable
+NOTE: If you don't see the Elyra server extension enabled, you may need to explicitly enable
 it with `jupyter serverextension enable elyra`
 
 ## Configuring Runtimes for Pipeline execution
