@@ -46,8 +46,8 @@ import { notebookIcon } from '@jupyterlab/ui-components';
 import { toArray } from '@lumino/algorithm';
 import { IDragEvent } from '@lumino/dragdrop';
 
-import '@elyra/canvas/dist/common-canvas.min.css';
 import 'carbon-components/css/carbon-components.min.css';
+import '@elyra/canvas/dist/common-canvas.min.css';
 import '../style/canvas.css';
 
 import * as React from 'react';
@@ -67,10 +67,6 @@ const PIPELINE_CLASS = 'elyra-PipelineEditor';
 const NODE_TOOLTIP_CLASS = 'elyra-PipelineNodeTooltip';
 
 const TIP_TYPE_NODE = 'tipTypeNode';
-
-const SAVE_ICON_ID = 'toolbar-icon-save';
-const EXPORT_ICON_ID = 'toolbar-icon-export';
-const CLEAR_ICON_ID = 'toolbar-icon-clear';
 
 const NodeProperties = (properties: any): React.ReactElement => {
   return (
@@ -115,25 +111,6 @@ export class PipelineEditorWidget extends ReactWidget {
     this.context = props.context;
   }
 
-  themeChanged(isLight: boolean): void {
-    [SAVE_ICON_ID, EXPORT_ICON_ID, CLEAR_ICON_ID].forEach((id: string) => {
-      const element = document.getElementById(id) as HTMLImageElement;
-      if (element) {
-        switch (element.id) {
-          case SAVE_ICON_ID:
-            element.src = Utils.getEncodedIcon(savePipelineIcon, !isLight);
-            break;
-          case EXPORT_ICON_ID:
-            element.src = Utils.getEncodedIcon(exportPipelineIcon, !isLight);
-            break;
-          case CLEAR_ICON_ID:
-            element.src = Utils.getEncodedIcon(clearPipelineIcon, !isLight);
-            break;
-        }
-      }
-    });
-  }
-
   render(): React.ReactElement {
     return (
       <PipelineEditor
@@ -171,6 +148,11 @@ export namespace PipelineEditor {
      * The form contents of the properties dialog.
      */
     propertiesInfo: any;
+
+    /**
+     * Whether pipeline is empty.
+     */
+    emptyPipeline: boolean;
   }
 }
 
@@ -197,14 +179,18 @@ export class PipelineEditor extends React.Component<
     this.canvasController.setPipelineFlowPalette(palette);
     this.widgetContext = props.widgetContext;
 
-    this.toolbarMenuActionHandler = this.toolbarMenuActionHandler.bind(this);
     this.contextMenuHandler = this.contextMenuHandler.bind(this);
-    this.contextMenuActionHandler = this.contextMenuActionHandler.bind(this);
     this.clickActionHandler = this.clickActionHandler.bind(this);
     this.editActionHandler = this.editActionHandler.bind(this);
     this.tipHandler = this.tipHandler.bind(this);
 
-    this.state = { showPropertiesDialog: false, propertiesInfo: {} };
+    this.state = {
+      showPropertiesDialog: false,
+      propertiesInfo: {},
+      emptyPipeline: Utils.isEmptyPipeline(
+        this.canvasController.getPipelineFlow()
+      )
+    };
 
     this.initPropertiesInfo();
 
@@ -216,9 +202,8 @@ export class PipelineEditor extends React.Component<
     this.handleEvent = this.handleEvent.bind(this);
   }
 
-  render(): any {
+  render(): React.ReactElement {
     const style = { height: '100%' };
-    const darkmode = !!document.querySelector("[data-jp-theme-light='false']");
     const emptyCanvasContent = (
       <div>
         <dragDropIcon.react tag="div" elementPosition="center" height="120px" />
@@ -232,45 +217,64 @@ export class PipelineEditor extends React.Component<
       enableInternalObjectModel: true,
       emptyCanvasContent: emptyCanvasContent,
       enablePaletteLayout: 'Modal',
-      paletteInitialState: false
+      paletteInitialState: false,
+      enableInsertNodeDroppedOnLink: true,
+      enableNodeFormatType: 'Horizontal'
     };
+    const contextMenuConfig = {
+      enableCreateSupernodeNonContiguous: false,
+      defaultMenuEntries: {
+        saveToPalette: false,
+        createSupernode: false
+      }
+    };
+    const pipelineDefinition = this.canvasController.getPipelineFlow();
+    const emptyCanvas = Utils.isEmptyCanvas(pipelineDefinition);
     const toolbarConfig = [
-      { action: 'run', label: 'Run Pipeline', enable: true },
+      {
+        action: 'run',
+        label: 'Run Pipeline',
+        enable: !this.state.emptyPipeline
+      },
       {
         action: 'save',
         label: 'Save Pipeline',
         enable: true,
-        iconEnabled: Utils.getEncodedIcon(savePipelineIcon, darkmode),
-        iconDisabled: Utils.getEncodedIcon(savePipelineIcon, darkmode)
+        iconEnabled: IconUtil.encode(savePipelineIcon),
+        iconDisabled: IconUtil.encode(savePipelineIcon)
       },
       {
         action: 'export',
         label: 'Export Pipeline',
-        enable: true,
-        iconEnabled: Utils.getEncodedIcon(exportPipelineIcon, darkmode),
-        iconDisabled: Utils.getEncodedIcon(exportPipelineIcon, darkmode)
+        enable: !this.state.emptyPipeline,
+        iconEnabled: IconUtil.encode(exportPipelineIcon),
+        iconDisabled: IconUtil.encode(exportPipelineIcon)
       },
       {
         action: 'clear',
         label: 'Clear Pipeline',
-        enable: true,
-        iconEnabled: Utils.getEncodedIcon(clearPipelineIcon, darkmode),
-        iconDisabled: Utils.getEncodedIcon(clearPipelineIcon, darkmode)
+        enable: !this.state.emptyPipeline || !emptyCanvas,
+        iconEnabled: IconUtil.encode(clearPipelineIcon),
+        iconDisabled: IconUtil.encode(clearPipelineIcon)
       },
       { divider: true },
-      { action: 'undo', label: 'Undo', enable: true },
-      { action: 'redo', label: 'Redo', enable: true },
-      { action: 'cut', label: 'Cut', enable: false },
-      { action: 'copy', label: 'Copy', enable: false },
-      { action: 'paste', label: 'Paste', enable: false },
-      { action: 'addComment', label: 'Add Comment', enable: true },
-      { action: 'delete', label: 'Delete', enable: true },
+      { action: 'undo', label: 'Undo' },
+      { action: 'redo', label: 'Redo' },
+      { action: 'cut', label: 'Cut' },
+      { action: 'copy', label: 'Copy' },
+      { action: 'paste', label: 'Paste' },
+      { action: 'createAutoComment', label: 'Add Comment', enable: true },
+      { action: 'deleteSelectedObjects', label: 'Delete' },
       {
         action: 'arrangeHorizontally',
         label: 'Arrange Horizontally',
-        enable: true
+        enable: !this.state.emptyPipeline
       },
-      { action: 'arrangeVertically', label: 'Arrange Vertically', enable: true }
+      {
+        action: 'arrangeVertically',
+        label: 'Arrange Vertically',
+        enable: !this.state.emptyPipeline
+      }
     ];
 
     const propertiesCallbacks = {
@@ -294,26 +298,34 @@ export class PipelineEditor extends React.Component<
 
     return (
       <div style={style} ref={this.node}>
-        <CommonCanvas
-          canvasController={this.canvasController}
-          toolbarMenuActionHandler={this.toolbarMenuActionHandler}
-          contextMenuHandler={this.contextMenuHandler}
-          contextMenuActionHandler={this.contextMenuActionHandler}
-          clickActionHandler={this.clickActionHandler}
-          editActionHandler={this.editActionHandler}
-          tipHandler={this.tipHandler}
-          toolbarConfig={toolbarConfig}
-          config={canvasConfig}
-        />
+        <IntlProvider
+          key="IntlProvider1"
+          locale={'en'}
+          messages={i18nData.messages}
+        >
+          <CommonCanvas
+            canvasController={this.canvasController}
+            contextMenuHandler={this.contextMenuHandler}
+            clickActionHandler={this.clickActionHandler}
+            editActionHandler={this.editActionHandler}
+            tipHandler={this.tipHandler}
+            toolbarConfig={toolbarConfig}
+            config={canvasConfig}
+            notificationConfig={{ enable: false }}
+            contextMenuConfig={contextMenuConfig}
+          />
+        </IntlProvider>
         {commProps}
       </div>
     );
   }
 
   updateModel(): void {
-    this.widgetContext.model.fromString(
-      JSON.stringify(this.canvasController.getPipelineFlow(), null, 2)
-    );
+    const pipelineFlow = this.canvasController.getPipelineFlow();
+
+    this.widgetContext.model.fromString(JSON.stringify(pipelineFlow, null, 2));
+
+    this.setState({ emptyPipeline: Utils.isEmptyPipeline(pipelineFlow) });
   }
 
   async initPropertiesInfo(): Promise<void> {
@@ -379,8 +391,6 @@ export class PipelineEditor extends React.Component<
    */
   contextMenuHandler(source: any, defaultMenu: any): any {
     let customMenu = defaultMenu;
-    // Remove option to create super node
-    customMenu.splice(4, 2);
     if (source.type === 'node') {
       if (source.selectedObjectIds.length > 1) {
         // multiple nodes selected
@@ -406,24 +416,6 @@ export class PipelineEditor extends React.Component<
   }
 
   /*
-   * Handles context menu actions
-   * Pipeline specific actions are:
-   *  - Open the associated Notebook
-   *  - Open node properties dialog
-   */
-  contextMenuActionHandler(action: any, source: any): void {
-    if (action === 'openNotebook' && source.type === 'node') {
-      this.handleOpenNotebook(source.selectedObjectIds);
-    } else if (action === 'properties' && source.type === 'node') {
-      if (this.state.showPropertiesDialog) {
-        this.closePropertiesDialog();
-      } else {
-        this.openPropertiesDialog(source);
-      }
-    }
-  }
-
-  /*
    * Handles mouse click actions
    */
   clickActionHandler(source: any): void {
@@ -437,6 +429,37 @@ export class PipelineEditor extends React.Component<
    * Handles creating new nodes in the canvas
    */
   editActionHandler(data: any): void {
+    if (data && data.editType) {
+      console.log(`Handling action: ${data.editType}`);
+
+      switch (data.editType) {
+        case 'run':
+          this.handleRunPipeline();
+          break;
+        case 'export':
+          this.handleExportPipeline();
+          break;
+        case 'save':
+          this.handleSavePipeline();
+          break;
+        case 'clear':
+          this.handleClearPipeline();
+          break;
+        case 'openNotebook':
+          if (data.type === 'node') {
+            this.handleOpenNotebook(data.selectedObjectIds);
+          }
+          break;
+        case 'properties':
+          if (data.type === 'node') {
+            this.state.showPropertiesDialog
+              ? this.closePropertiesDialog()
+              : this.openPropertiesDialog(data);
+          }
+          break;
+      }
+    }
+
     this.updateModel();
   }
 
@@ -601,7 +624,7 @@ export class PipelineEditor extends React.Component<
       if (pipelineJson == null) {
         // creating new pipeline
         pipelineJson = this.canvasController.getPipelineFlow();
-        if (Utils.isNewPipeline(pipelineJson)) {
+        if (Utils.isEmptyPipeline(pipelineJson)) {
           pipelineJson.pipelines[0]['app_data'][
             'version'
           ] = PIPELINE_CURRENT_VERSION;
@@ -663,6 +686,7 @@ export class PipelineEditor extends React.Component<
           this.canvasController.setPipelineFlow(pipelineJson);
         }
       }
+      this.setState({ emptyPipeline: Utils.isEmptyPipeline(pipelineJson) });
     });
   }
 
@@ -721,23 +745,6 @@ export class PipelineEditor extends React.Component<
   handleClosePipeline(): void {
     if (this.app.shell.currentWidget) {
       this.app.shell.currentWidget.close();
-    }
-  }
-
-  /**
-   * Handles submitting pipeline runs
-   */
-  toolbarMenuActionHandler(action: any, source: any): void {
-    console.log('Handling action: ' + action);
-    if (action == 'run') {
-      // When executing the pipeline
-      this.handleRunPipeline();
-    } else if (action == 'export') {
-      this.handleExportPipeline();
-    } else if (action == 'save') {
-      this.handleSavePipeline();
-    } else if (action == 'clear') {
-      this.handleClearPipeline();
     }
   }
 

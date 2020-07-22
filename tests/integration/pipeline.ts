@@ -32,7 +32,7 @@ describe('PipelineEditor', () => {
     ).click();
   });
 
-  it('opens pipeline editor', () => {
+  it('opens blank pipeline editor', () => {
     cy.get(
       '.lm-TabBar-tab[data-id="launcher-0"] > .lm-TabBar-tabCloseIcon:visible'
     ).click({ multiple: true });
@@ -41,4 +41,57 @@ describe('PipelineEditor', () => {
       .scrollIntoView()
       .click();
   });
+
+  it('checks for disabled buttons', () => {
+    cy.get('#run-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#export-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#clear-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#undo-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#redo-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#cut-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#copy-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+
+    // TODO: investigate further
+    // paste action always enabled (even when set to false in toolbarConfig)
+    // cy.get('#paste-action button')
+    //   .should('have.length', 1)
+    //   .should('be.disabled');
+
+    cy.get('#deleteSelectedObjects-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#arrangeHorizontally-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+    cy.get('#arrangeVertically-action button')
+      .should('have.length', 1)
+      .should('be.disabled');
+  });
+
+  it('checks save and add comment buttons are enabled', () => {
+    cy.get('#save-action button')
+      .should('have.length', 1)
+      .should('not.be.disabled');
+    cy.get('#createAutoComment-action button')
+      .should('have.length', 1)
+      .should('not.be.disabled');
+  });
+
+  // TODO:
+  // - Drag and drop a notebook to pipeline editor
+  // - Test expected buttons are enabled: run,save,export, clear, undo, cut,copy,delete, arrangeHorizontally, arrangeVertivally
 });
